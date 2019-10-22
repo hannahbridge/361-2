@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <wordexp.h>
 #include "sh.h"
 #define BUFFERSIZE 128
 
@@ -43,7 +44,6 @@ int sh( int argc, char **argv, char **envp )
   char *commandline = calloc(MAX_CANON, sizeof(char));
   char *command, *arg, *commandpath, *p, *pwd, *owd, *cwd;
   char **args = calloc(MAXARGS, sizeof(char*));
-  char **argsML = args;
   int uid, i, status, argsct, go = 1;
   struct passwd *password_entry;
   char *homedir;
@@ -88,12 +88,6 @@ int sh( int argc, char **argv, char **envp )
     if (!strcmp(args[0],"exit"))  
     {
       printf("exiting\n");
-      free(prompt);
-      free(commandline);
-      free(owd);
-      freeElement(pathlist);
-      free(argsML);
-      free(pwd);
 		  go=0;
 		}
 		else if (!strcmp(args[0],"which"))   
@@ -117,7 +111,7 @@ int sh( int argc, char **argv, char **envp )
             } 
             else 
             {
-              printf("%s %s: not found\n", args[0], args[1]);
+              printf("%s %s: not found\n", args[0], args[i]);
             }
           }
           else
@@ -148,7 +142,7 @@ int sh( int argc, char **argv, char **envp )
             } 
             else 
             {
-              printf("%s %s: not found\n", args[0], args[1]);
+              printf("%s %s: not found\n", args[0], args[i]);
             }
           }
           else
@@ -179,8 +173,8 @@ int sh( int argc, char **argv, char **envp )
 					free(pwd);
 					free(owd);
 					owd = getcwd (NULL, PATH_MAX+1);
-					chdir(args[1]);
 					pwd = getcwd(NULL, PATH_MAX+1);
+          chdir(args[1]);
 				}
 			}
     }
@@ -290,10 +284,29 @@ int sh( int argc, char **argv, char **envp )
     /*  else  program to exec */
 		else
     {
+      int wcIndex = -1;
+      int i = 0;
+      char **wildcard;
+      wordexp_t p;
+      while (args[i])
+      {
+        if (strchr(args[i], '*') || strchr(args[i], '?'))
+        {
+          wcIndex = i;
+        }
+        i++;
+      }
+      if (wcIndex >= 0)
+      {
+        wordexp(args[wcIndex], &p, 0);
+        wildcard = p.we_wordv;
+        args[wcIndex] = NULL;
+      }
+
       /* find it */
 			//get the absolute path from which
 			char* cmd=which(args[0],pathlist);
-			int pid=fork();
+			pid_t pid=fork();
       /* do fork(), execve() and waitpid() */
 			if (pid)
       {
@@ -311,6 +324,19 @@ int sh( int argc, char **argv, char **envp )
 			}
 		}
   }
+  free(prompt);
+	free(commandline);
+	free(args);
+	free(owd);
+	free(pwd);
+	free(pathlist->element);
+	struct pathelement *tmp = NULL;
+	while(pathlist != NULL)
+  {
+	    tmp = pathlist->next;
+	    free(pathlist);
+	    pathlist = tmp;
+	}
   return 0;
 } /* sh() */
 
@@ -427,23 +453,12 @@ void printenv(char **envp)
   }
 } /* printenv() */
 
-void freeElement(struct pathelement *pathElement)
-{
-  struct pathelement* currPath = pathElement;
-  while(currPath!=NULL)
-  {
-    struct pathelement* tmp = currPath->next;
-    free(currPath);
-    currPath = tmp;
-  }
-} /* freePathList() */
-
 /* signal handler for Ctrl+C */
 void handleSigInt(int sig)
 {
 	/* Reset handler to catch SIGINT next time.*/
 	signal(SIGINT, handleSigInt);
-	printf("cannot be terminated using Ctrl+C %d \n", waitpid(getpid(), NULL, 0));
+	printf("\n cannot be terminated using Ctrl+C %d \n", waitpid(getpid(), NULL, 0));
 	fflush(stdout);
 	return;
 }
@@ -452,6 +467,6 @@ void handleSigInt(int sig)
 void handleSigStp(int sig)
 {
 	signal(SIGTSTP, handleSigStp);
-	printf("cannot be terminated using Ctrl+Z \n");
+	printf("\n cannot be terminated using Ctrl+Z \n");
 	fflush(stdout);
 }
