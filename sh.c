@@ -84,8 +84,15 @@ int sh( int argc, char **argv, char **envp )
 
     inputToCharArray(buffer, args);
 
+    if (!strcmp(args[0],NULL))  
+    {
+      printf("\n cannot Ctrl-D \n");
+      free(args[0]);
+      free(args);
+      continue;
+    }
     /* check for each built in command and implement */
-    if (!strcmp(args[0],"exit"))  
+    else if (!strcmp(args[0],"exit"))  
     {
       printf("exiting\n");
 		  go=0;
@@ -307,8 +314,9 @@ int sh( int argc, char **argv, char **envp )
 			//get the absolute path from which
 			char* cmd=which(args[0],pathlist);
 			pid_t pid=fork();
+
       /* do fork(), execve() and waitpid() */
-			if (pid)
+			if (pid>0)
       {
 				free(cmd);
 				waitpid(pid,NULL,0);
@@ -470,3 +478,4 @@ void handleSigStp(int sig)
 	printf("\n cannot be terminated using Ctrl+Z \n");
 	fflush(stdout);
 }
+
